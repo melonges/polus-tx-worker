@@ -75,4 +75,16 @@ export class PrivateKeyProvider {
     await fs.writeFile(this.privateKeyFilePath, json, { encoding: "utf-8" });
     return privateKeyList.privateKeys[privateKeyList.currentPrivateKeyIndex];
   }
+  async rollBackPrivateKey() {
+    const privateKeyList = await this.getPrivateKeyList(
+      this.privateKeyFilePath
+    );
+    if (privateKeyList.currentPrivateKeyIndex - 1 < 0) {
+      throw new Error("Private key list is empty");
+    }
+    privateKeyList.currentPrivateKeyIndex--;
+    const json = JSON.stringify(privateKeyList);
+    await fs.writeFile(this.privateKeyFilePath, json, { encoding: "utf-8" });
+    return privateKeyList.privateKeys[privateKeyList.currentPrivateKeyIndex];
+  }
 }
