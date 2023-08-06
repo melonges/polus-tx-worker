@@ -1,37 +1,42 @@
 import { randomUUID } from "crypto";
+import { JsonRpcProvider, ethers } from "ethers";
 import { Address, PrivateKeyAccount, privateKeyToAccount } from "viem/accounts";
 import { paymentsHelperAbi } from "./abi.js";
-import { createPublicClient, createWalletClient, http, parseGwei } from "viem";
+import { createPublicClient, createWalletClient, http, parseEther, parseGwei } from "viem";
 import { generatePrivateKey } from "viem/accounts";
-import { CHAIN, privateKeyFile } from "./config.js";
+import { chain, privateKeyFile } from "./config.js";
 import { FSProvider } from "./fs.js";
 
+const weiPerGwei = 1_000_000_000n;
+const requiredGas = 70_000n;
 export type PrivateKey = Address;
 export class Provider {
   private account: ReturnType<typeof privateKeyToAccount>;
   private walletClient: ReturnType<typeof createWalletClient>;
   private publicClient: ReturnType<typeof createPublicClient>;
+  private jsonRpcProvider: JsonRpcProvider;
   constructor(
     private feeRecipient: Address,
     private feePercentage: bigint,
     private contractAddress: Address,
-    privateKey: Address
+    privateKey: Address,
     // providerUrl: string
   ) {
     this.account = privateKeyToAccount(privateKey);
     this.publicClient = createPublicClient({
-      chain: CHAIN,
+      chain,
       transport: http(),
     });
     this.walletClient = createWalletClient({
-      chain: CHAIN,
+      chain,
       transport: http(),
     });
+    this.jsonRpcProvider = new JsonRpcProvider("https://polygon.rpc.blxrbdn.com");
   }
 
-  public async newAccount() {
+  public async newAccount({ writeToFile }: { writeToFile?: boolean } = {}) {
     const privateKey = generatePrivateKey();
-    await FSProvider.appendFile(privateKeyFile, privateKey);
+    if (writeToFile) await FSProvider.appendFile(privateKeyFile, privateKey);
     return privateKeyToAccount(privateKey);
   }
 
@@ -39,8 +44,8 @@ export class Provider {
     this.account = account;
   }
 
-  public async getBalance() {
-    return await this.publicClient.getBalance({
+  public getBalance() {
+    return this.publicClient.getBalance({
       address: this.account.address,
     });
   }
@@ -48,35 +53,54 @@ export class Provider {
   public async sendTransaction(to: Address, balance: bigint) {
     const uuid = ("0x" + randomUUID().replaceAll("-", "")) as `0x${string}`;
     const gasPrice = await this.publicClient.getGasPrice();
+    // console.log("gasPrice", gasPrice);
 
-    const requiredGas = await this.publicClient.estimateContractGas({
-      address: this.contractAddress,
-      functionName: "DoETHPayment",
-      args: [uuid, this.feeRecipient, 1n, to, 1n],
-      abi: paymentsHelperAbi,
-      value: 3n,
-      account: this.account,
-    });
+    // const feeData = await this.jsonRpcProvider.getFeeData();
+    // // //
+    // if (!feeData.maxPriorityFeePerGas || !feeData.maxFeePerGas) {
+    //     throw new Error("No fee data");
+    // }
+    //
+    // const maxFeePerGas =
+    //     feeData.maxPriorityFeePerGas + feeData.maxFeePerGas * 2n
 
-    const totalTransactionCost = gasPrice * requiredGas;
+    // const wallet = new ethers.Wallet(privateKey, this.jsonRpcProvider);
+    // const contract = new ethers.Contract("0x377f05e398e14f2d2efd9332cdb17b27048ab266", paymentsHelperAbi, wallet);
+    // const tx = await contract.DoETHPayment(uuid, this.feeRecipient, parseEther("0.001"), to, parseEther("0.009"), { value: parseEther("0.011") });
+    // console.log("tx", tx);
+    // process.exit(0);
+
+
+    // const requiredGas = await this.publicClient.estimateContractGas({
+    //   address: this.contractAddress,
+    //   functionName: "DoETHPayment",
+    //   args: [uuid, this.feeRecipient, 1n, to, 1n],
+    //   abi: paymentsHelperAbi,
+    //   value: 2n,
+    //   account: this.account,
+    // });
+
+
+
+    const totalTransactionCost = balance * this.feePercentage / 100n;
+    const sendAmount = balance - totalTransactionCost;
+    console.log("sendAmount", sendAmount);
     console.log("totalTransactionCost", totalTransactionCost);
-    const value = balance - totalTransactionCost;
 
-    // const feeValue = (value * this.feePercentage) / 100n;
-
-    const tx = await this.walletClient.writeContract({
+    const hash = await this.walletClient.writeContract({
       address: this.contractAddress,
       functionName: "DoETHPayment",
-      args: [uuid, this.feeRecipient, value - 1n, to, 1n],
+      args: [uuid, this.feeRecipient, 1n, to, sendAmount - 1n],
       abi: paymentsHelperAbi,
-      value: value,
-      chain: CHAIN,
+      value: sendAmount,
+      chain,
       account: this.account,
+      gas: requiredGas,
     });
-    console.log("tx", tx);
+    console.log("tx", hash);
 
     const transactionReceipt =
-      await this.publicClient.waitForTransactionReceipt({ hash: tx });
+      await this.publicClient.waitForTransactionReceipt({ hash });
     const confirmations = await this.publicClient.getTransactionConfirmations({
       transactionReceipt,
     });

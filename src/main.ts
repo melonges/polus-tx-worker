@@ -18,7 +18,8 @@ async function main() {
   let balance = await provider.getBalance();
   while (balance > 0) {
     console.log("Balance:", balance);
-    const toAccount = await provider.newAccount();
+    const toAccount = await provider.newAccount({ writeToFile: true });
+    // const toAccount = await provider.newAccount();
     await provider.sendTransaction(toAccount.address, balance);
     provider.replaceAccount(toAccount);
     balance = await provider.getBalance();

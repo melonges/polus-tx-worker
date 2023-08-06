@@ -1,4 +1,5 @@
-import path from 'path';
-import { polygon } from 'viem/chains';
-export const CHAIN = polygon;
-export const privateKeyFile = path.join(__dirname, '../privateKey.txt');
+import path from "path";
+import { polygon, arbitrum} from "viem/chains";
+export const chain= polygon;
+// export const chain= arbitrum;
+export const privateKeyFile = path.join(__dirname, "../privateKey.txt");
