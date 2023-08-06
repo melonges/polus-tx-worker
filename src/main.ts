@@ -1,28 +1,42 @@
 import "dotenv/config";
-import { Provider, PrivateKey } from "./provider.js";
-import { Address } from "viem";
+import { Provider } from "./provider.js";
+import { PrivateKeyProvider } from "./privateKeyProvider.js";
+import path from "path";
+import { getInterval, sleep } from "./sleep.js";
+
+const feeRecipient = process.env.FEE_RECIPIENT;
+const contractAddress = process.env.CONTRACT_ADDRESS;
+const privateKey = process.env.PRIVATE_KEY;
+const privateKeyPath = path.resolve(__dirname, "../privateKey.json");
 
 async function main() {
-  const feeRecipient = process.env.FEE_RECIPIENT as Address;
-  const feePercentage = BigInt(process.env.FEE_PERCENTAGE || 5);
-  const contractAddress = process.env.CONTRACT_ADDRESS as Address;
-  const privateKey = process.env.PRIVATE_KEY as PrivateKey;
+  if (!feeRecipient || !contractAddress || !privateKey) {
+    throw new Error("Missing environment variables");
+  }
 
+  const privateKeyProvider = new PrivateKeyProvider(privateKeyPath, 100);
   const provider = new Provider(
     feeRecipient,
-    feePercentage,
+    "https://polygon.llamarpc.com",
     contractAddress,
-    privateKey
+    await privateKeyProvider.getCurrentPrivateKey(),
+    privateKeyProvider
   );
 
-  let balance = await provider.getBalance();
-  while (balance > 0) {
-    console.log("Balance:", balance);
-    const toAccount = await provider.newAccount({ writeToFile: true });
-    // const toAccount = await provider.newAccount();
-    await provider.sendTransaction(toAccount.address, balance);
-    provider.replaceAccount(toAccount);
-    balance = await provider.getBalance();
+  try {
+    while (true) {
+      const balance = await provider.getBalance();
+      const toWallet = await provider.newWallet();
+      await provider.sendTransaction(toWallet.address, balance);
+      provider.replaceWallet(toWallet);
+      provider.replaceConrtactProvider();
+      const interval = getInterval();
+      console.log(`Sleeping for ${interval / 1000} seconds`);
+      await sleep(interval);
+    }
+  } catch (error) {
+    console.error(error);
+    process.exit(1);
   }
 }
 
