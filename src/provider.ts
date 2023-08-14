@@ -28,6 +28,9 @@ export class Provider {
   public getBalance() {
     return this.jsonRpcProvider.getBalance(this.wallet.address);
   }
+  public rollBack() {
+    this.privateKeyProvider.rollBackPrivateKey();
+  }
 
   public async newWallet() {
     return new Wallet(
@@ -48,7 +51,11 @@ export class Provider {
     );
   }
 
-  public async sendTransaction(to: string, balance: bigint) {
+  public async sendTransaction(
+    to: string,
+    balance: bigint,
+    afterSend?: () => void
+  ) {
     const uuid = ("0x" + randomUUID().replaceAll("-", "")) as `0x${string}`;
 
     const feeData = await this.jsonRpcProvider.getFeeData();
@@ -69,6 +76,8 @@ export class Provider {
     const sendAmount = balance - maxFeePerGas * requiredGas;
     console.log("to", to);
     console.log("pk", this.wallet.privateKey);
+    console.log("sendAmount", sendAmount);
+    console.log("balance", balance);
 
     const tx = await this.contract.DoETHPayment.send(
       uuid,
@@ -80,6 +89,7 @@ export class Provider {
         value: sendAmount,
       }
     );
+    afterSend?.();
     await tx.wait();
   }
 }
