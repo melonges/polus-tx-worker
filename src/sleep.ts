@@ -1,4 +1,3 @@
-const hInSec = 3600;
 export const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -9,9 +8,9 @@ export const getInterval = () => {
   );
   const nyHour = nyTime.getHours();
   return (
-    hInSec *
-    Math.random() *
+    3600 *
     1000 *
-    (nyHour > 8 && nyHour < 16 ? 1 : nyHour > 16 && nyHour < 20 ? 0.5 : 2)
+    Math.random() *
+    (nyHour > 8 && nyHour < 16 ? 0.5 : nyHour > 16 && nyHour < 20 ? 0.25 : 1)
   );
 };
